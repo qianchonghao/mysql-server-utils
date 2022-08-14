@@ -1,16 +1,19 @@
 package com.example.mysqlserverutilbak.mysql.util;
 
+import lombok.extern.slf4j.Slf4j;
+
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.function.Function;
-
+@Slf4j
 public class SqlUtils {
     public static void executeUpdate(DataSource ds, String sql, Object... args) {
         Connection conn = null;
         PreparedStatement preparedStatement = null;
+
         try {
             conn = ds.getConnection();
             preparedStatement = conn.prepareStatement(sql);
@@ -47,7 +50,7 @@ public class SqlUtils {
             rs = ps.executeQuery();
             return func.apply(rs);
         } catch (SQLException e) {
-            System.out.println("execute sql query fail");
+            log.error("execute sql query fail",e);
             return null;
         } finally {
             try {
@@ -66,9 +69,9 @@ public class SqlUtils {
         }
     }
 
-    public static ResultSet executeQuery(DataSource ds, String sql, Object... args) {
-        return executeQuery(ds, sql, (rs) -> {
-            return rs;
-        }, args);
-    }
+//    public static ResultSet executeQuery(DataSource ds, String sql, Object... args) {
+//        return executeQuery(ds, sql, (rs) -> {
+//            return rs;
+//        }, args);
+//    }
 }

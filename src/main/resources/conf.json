@@ -1,0 +1,20 @@
+{
+  "source": {
+    "driverClassName": "com.mysql.cj.jdbc.Driver",
+    "url": "jdbc:mysql://localhost:3306/binlog?&characterEncoding=UTF-8&useSSL=false&serverTimezone=GMT%2B8",
+    "username": "root",
+    "password": "123456",
+    "initialSize": "4",
+    "maxActive": "4",
+    "maxWait": "60000"
+  },
+  "target": {
+    "driverClassName": "com.mysql.cj.jdbc.Driver",
+    "url": "jdbc:mysql://localhost:3306/binlog?&characterEncoding=UTF-8&useSSL=false&serverTimezone=GMT%2B8",
+    "username": "root",
+    "password": "123456",
+    "initialSize": "4",
+    "maxActive": "4",
+    "maxWait": "60000"
+  }
+}
