@@ -4,8 +4,8 @@ import lombok.Data;
 
 import java.util.List;
 public abstract class DifferenceInfo {
-    protected String dbName;
-    protected String tableName;
+    private String dbName;
+    private String tableName;
 
     public String getDbName() {
         return dbName;
@@ -13,6 +13,14 @@ public abstract class DifferenceInfo {
 
     public String getTableName() {
         return tableName;
+    }
+
+    public void setDbName(String dbName) {
+        this.dbName = dbName;
+    }
+
+    public void setTableName(String tableName) {
+        this.tableName = tableName;
     }
 
     abstract DiffType getDiffType();
@@ -43,8 +51,8 @@ public abstract class DifferenceInfo {
     public static class DBMissInfo extends DifferenceInfo {
         public static final String DB_MISS_TABLE = "*";
         public DBMissInfo(String dbName) {
-            super.tableName = DB_MISS_TABLE;
-            super.dbName = dbName;
+            super.setDbName(dbName);
+            super.setTableName(DB_MISS_TABLE);
         }
 
         @Override
@@ -56,8 +64,8 @@ public abstract class DifferenceInfo {
     // [MISS_TABLE]
     public static class TableMissInfo extends DifferenceInfo {
         public TableMissInfo(String dbName, String tableName) {
-            super.tableName = tableName;
-            super.dbName = dbName;
+            super.setDbName(dbName);
+            super.setTableName(tableName);
         }
 
         @Override
@@ -69,8 +77,8 @@ public abstract class DifferenceInfo {
     // [DIFF_FROM_TABLE_STRUCTURE]
     public static class TableStructureDiffInfo extends DifferenceInfo {
         public TableStructureDiffInfo(String dbName, String tableName) {
-            super.tableName = tableName;
-            super.dbName = dbName;
+            super.setDbName(dbName);
+            super.setTableName(tableName);
         }
 
         @Override
@@ -101,8 +109,8 @@ public abstract class DifferenceInfo {
     // [DIFF_FROM_RECORD_NUM]
     public static class RecordDiffInfo extends DifferenceInfo {
         public RecordDiffInfo(String dbName, String tableName) {
-            super.tableName = tableName;
-            super.dbName = dbName;
+            super.setDbName(dbName);
+            super.setTableName(tableName);
         }
 
         @Override

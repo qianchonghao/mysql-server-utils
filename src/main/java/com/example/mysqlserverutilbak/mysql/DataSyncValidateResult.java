@@ -8,7 +8,7 @@ import java.util.Map;
 import static com.example.mysqlserverutilbak.mysql.DifferenceInfo.*;
 
 @Data
-public class CheckResult {
+public class DataSyncValidateResult {
     /**
      * CheckResult的作用：
      * 1. According to dbName + table, get diffInfo    // 用于关注core表，更加直观

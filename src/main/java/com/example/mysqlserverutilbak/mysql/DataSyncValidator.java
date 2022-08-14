@@ -1,22 +1,14 @@
 package com.example.mysqlserverutilbak.mysql;
 
-import com.alibaba.druid.pool.DruidDataSourceFactory;
-import com.alibaba.fastjson.JSONObject;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.google.common.io.CharStreams;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import javax.sql.DataSource;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +34,8 @@ public class DataSyncValidator implements InitializingBean {
 
     private static final String SHOW_TABLES = "SHOW TABLES FROM ";
 
+    private static final String SHOW_TABLE_STRUCTURES = "";
+
     @Autowired
     private DataSource sourceDataSource;
 
@@ -54,7 +48,7 @@ public class DataSyncValidator implements InitializingBean {
 
     @Override
     public void afterPropertiesSet() {
-        CheckResult res = new CheckResult();
+        DataSyncValidateResult res = new DataSyncValidateResult();
 
         targetDBNames = getAllDBInDataSource(targetDataSource);
         sourceDBNames = getAllDBInDataSource(sourceDataSource);
@@ -75,7 +69,6 @@ public class DataSyncValidator implements InitializingBean {
                 res.registerDiffInfo(new DBMissInfo(dbName));
             });
         }
-
 
         // 2. [MISS_TABLE]: 同db下，source存在，但target不具备的table
         for (String dbName : rawSource.keySet()) {
@@ -102,16 +95,18 @@ public class DataSyncValidator implements InitializingBean {
         }
 
 
+        // 3. [DIFF_FROM_TABLE_STRUCTURE]: db.table为key，对比source, target的表结构
+        for (Map.Entry<String, List<String>> entry : rawSource.entrySet()) {
+            String dbName = entry.getKey();
+            List<String> tables = entry.getValue();
+            // @leimo todo:
+            //  information_schema.INNODB_TABLES: 查询 tableName -> tableId
+            //  information_schema.INNODB_COLUMNS: 查询 tableId -> columns
+
+        }
+
         log.info(">>>>>>>>>>> [DataSyncValidator] result is {}",res);
-//        // 3. [DIFF_FROM_TABLE_STRUCTURE]: db.table为key，对比source, target的表结构
-//        for (Map.Entry<String, List<String>> entry : rawSource.entrySet()) {
-//            String dbName = entry.getKey();
-//            List<String> tables = entry.getValue();
-//            // @leimo todo:
-//            //  information_schema.INNODB_TABLES: 查询 tableName -> tableId
-//            //  information_schema.INNODB_COLUMNS: 查询 tableId -> columns
-//
-//        }
+
     }
 
     private Set<String> getTables(DataSource dataSource, String dbName) {
