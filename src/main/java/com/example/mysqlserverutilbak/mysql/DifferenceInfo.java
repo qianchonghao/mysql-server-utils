@@ -86,23 +86,23 @@ public abstract class DifferenceInfo {
             return DiffType.DIFF_FROM_TABLE_STRUCTURE;
         }
 
-        List<String> missColumn;
-        List<String> redundantColumn;
+        List<ColumnStructure> columnsOnlyInSource;
+        List<ColumnStructure> columnsOnlyInTarget;
 
-        public List<String> getMissColumn() {
-            return missColumn;
+        public List<ColumnStructure> getColumnsOnlyInSource() {
+            return columnsOnlyInSource;
         }
 
-        public void setMissColumn(List<String> missColumn) {
-            this.missColumn = missColumn;
+        public void setColumnsOnlyInSource(List<ColumnStructure> columnsOnlyInSource) {
+            this.columnsOnlyInSource = columnsOnlyInSource;
         }
 
-        public List<String> getRedundantColumn() {
-            return redundantColumn;
+        public List<ColumnStructure> getColumnsOnlyInTarget() {
+            return columnsOnlyInTarget;
         }
 
-        public void setRedundantColumn(List<String> redundantColumn) {
-            this.redundantColumn = redundantColumn;
+        public void setColumnsOnlyInTarget(List<ColumnStructure> columnsOnlyInTarget) {
+            this.columnsOnlyInTarget = columnsOnlyInTarget;
         }
     }
 

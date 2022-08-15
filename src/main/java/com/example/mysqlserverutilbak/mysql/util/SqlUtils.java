@@ -69,9 +69,4 @@ public class SqlUtils {
         }
     }
 
-//    public static ResultSet executeQuery(DataSource ds, String sql, Object... args) {
-//        return executeQuery(ds, sql, (rs) -> {
-//            return rs;
-//        }, args);
-//    }
 }

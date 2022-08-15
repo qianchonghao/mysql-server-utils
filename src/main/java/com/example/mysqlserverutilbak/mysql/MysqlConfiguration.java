@@ -35,21 +35,6 @@ public class MysqlConfiguration {
         }
 
         return dataSource;
-//        Map<String, String> map = new HashMap<>();
-//        map.put("driverClassName", "com.mysql.cj.jdbc.Driver");
-//        map.put("url", "jdbc:mysql://" + config.mysqlAddr + ":" + config.mysqlPort + "?&characterEncoding=UTF-8&useSSL=false&serverTimezone=GMT%2B8");
-//        // @leimo todo : 链接 spring_demo的 db，执行 create db & create table ， 测试是否可行
-//        map.put("url", "jdbc:mysql://" + config.mysqlAddr + ":" + config.mysqlPort +"/test"+ "?&characterEncoding=UTF-8&useSSL=false&serverTimezone=GMT%2B8");
-//        map.put("username", config.mysqlUsername);
-//        map.put("password", config.mysqlPassword);
-//        map.put("initialSize", "2");
-//        map.put("maxActive", "2");
-//        map.put("maxWait", "60000");
-//        map.put("timeBetweenEvictionRunsMillis", "60000");
-//        map.put("minEvictableIdleTimeMillis", "300000");
-//        map.put("validationQuery", "SELECT 1 FROM DUAL");
-//        map.put("testWhileIdle", "true");
-
     }
 
     private JSONObject getConfigChild(String childKey) {

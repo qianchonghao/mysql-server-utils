@@ -19,12 +19,7 @@ public class DataSyncValidateResult {
     private Map<DiffType, Map<String, DifferenceInfo>> differences = Maps.newHashMap();
 
     public void registerDiffInfo(DifferenceInfo differenceInfo) {
-        Map<String, DifferenceInfo> diffMap = differences.get(differenceInfo.getDiffType());
-        if (diffMap == null || diffMap.isEmpty()) {
-            diffMap = Maps.newHashMap();
-            differences.put(differenceInfo.getDiffType(), diffMap);
-        }
-
+        Map<String, DifferenceInfo> diffMap = differences.computeIfAbsent(differenceInfo.getDiffType(), (key) -> Maps.newHashMap());
         diffMap.put(differenceInfo.getKey(), differenceInfo);
     }
 
