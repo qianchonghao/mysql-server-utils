@@ -5,6 +5,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
@@ -37,6 +38,8 @@ public class DataSyncValidator implements InitializingBean {
     private static final String SHOW_TABLES = "SHOW TABLES FROM ";
 
     private static final String SHOW_TABLE_STRUCTURES = "SELECT * FROM information_schema.columns WHERE TABLE_SCHEMA = ? AND TABLE_NAME in ";
+
+    private static final String SHOW_TABLE_STRUCTURES_IN_DB = "SELECT * FROM information_schema.columns WHERE TABLE_SCHEMA = ? limit ?,?";
 
     private static final int LIMIT = 500;
     @Autowired
@@ -111,7 +114,7 @@ public class DataSyncValidator implements InitializingBean {
             for (Entry<String, Set<ColumnStructure>> tableEntry : tableColumns.entrySet()) {
                 String tableName = tableEntry.getKey();
                 Set<ColumnStructure> sourceColumns = tableEntry.getValue();
-                Set<ColumnStructure> targetColumns = targetColumnMap.get(dbName).get(tableName);
+                Set<ColumnStructure> targetColumns = targetColumnMap.computeIfAbsent(dbName, key -> Maps.newHashMap()).get(tableName);
                 // @leimo todo: source和target存在 db.table.columnName一致，但structure整体存在差异的columns。note: Pair 形式存储。
                 Sets.SetView<ColumnStructure> columnsOnlyInSource = Sets.difference(sourceColumns, targetColumns);
                 Sets.SetView<ColumnStructure> columnsOnlyInTarget = Sets.difference(targetColumns, sourceColumns);
@@ -124,11 +127,99 @@ public class DataSyncValidator implements InitializingBean {
                     rawTables.remove(tableName);
                 }
             }
-            tempRawSource.put(dbName,rawTables);
+            tempRawSource.put(dbName, rawTables);
         }
-        mergeTemp2RawSource(rawSource,tempRawSource);
+        mergeTemp2RawSource(rawSource, tempRawSource);
 
+        // 4. [DIFF_FROM_RECORD_NUM]
+        // UNION ALL拼接多table count， LIMIT = 500 统计record count
+//        SELECT count(*) total_count, 'columns' table_name FROM information_schema.columns
+//        UNION ALL
+//        SELECT count(*) total_count, '_test_leimo_user' table_name FROM xspace_account._test_leimo_user
+//        @leimo note: 字符串的最大长度：https://www.cnblogs.com/54chensongxia/p/13640352.html#:~:text=String%20%E7%9A%84%E9%95%BF%E5%BA%A6%E6%98%AF%E6%9C%89%E9%99%90%E5%88%B6%E7%9A%84%E3%80%82,%E7%BC%96%E8%AF%91%E6%9C%9F%E7%9A%84%E9%99%90%E5%88%B6%EF%BC%9A%E5%AD%97%E7%AC%A6%E4%B8%B2%E7%9A%84UTF8%E7%BC%96%E7%A0%81%E5%80%BC%E7%9A%84%E5%AD%97%E8%8A%82%E6%95%B0%E4%B8%8D%E8%83%BD%E8%B6%85%E8%BF%8765535%EF%BC%8C%E5%AD%97%E7%AC%A6%E4%B8%B2%E7%9A%84%E9%95%BF%E5%BA%A6%E4%B8%8D%E8%83%BD%E8%B6%85%E8%BF%8765534%EF%BC%9B%20%E8%BF%90%E8%A1%8C%E6%97%B6%E9%99%90%E5%88%B6%EF%BC%9A%E5%AD%97%E7%AC%A6%E4%B8%B2%E7%9A%84%E9%95%BF%E5%BA%A6%E4%B8%8D%E8%83%BD%E8%B6%85%E8%BF%872%5E31-1%EF%BC%8C%E5%8D%A0%E7%94%A8%E7%9A%84%E5%86%85%E5%AD%98%E6%95%B0%E4%B8%8D%E8%83%BD%E8%B6%85%E8%BF%87%E8%99%9A%E6%8B%9F%E6%9C%BA%E8%83%BD%E5%A4%9F%E6%8F%90%E4%BE%9B%E7%9A%84%E6%9C%80%E5%A4%A7%E5%80%BC%E3%80%82
+
+        Map<String, Map<String, Long>> sourceRecordCount = getTableCountMap(rawSource, sourceDataSource);
+        Map<String, Map<String, Long>> targetRecordCount = getTableCountMap(rawSource, targetDataSource);
+        tempRawSource = Maps.newHashMap();
+
+        for (Entry<String, Map<String, Long>> entry : sourceRecordCount.entrySet()) {
+            String dbName = entry.getKey();
+            Map<String, Long> tableCountMap = entry.getValue();
+            Set<String> rawTables = Sets.newHashSet(tableCountMap.keySet());
+
+            for (Entry<String, Long> tableCountEntry : tableCountMap.entrySet()) {
+                String tableName = tableCountEntry.getKey();
+                Long sourceTotalCount = tableCountEntry.getValue();
+                Long targetTotalCount = targetRecordCount.computeIfAbsent(dbName, key -> Maps.newHashMap()).get(tableName);
+                if (sourceTotalCount == null || !sourceTotalCount.equals(targetTotalCount)) {
+                    RecordDiffInfo diffInfo = new RecordDiffInfo(dbName, tableName);
+                    diffInfo.setSourceTotalCount(sourceTotalCount);
+                    diffInfo.setTargetTotalCount(targetTotalCount);
+                    res.registerDiffInfo(diffInfo);
+
+                    rawTables.remove(tableName);
+                }
+            }
+            tempRawSource.put(dbName, rawTables);
+        }
+        mergeTemp2RawSource(rawSource, tempRawSource);
+
+
+        // 5. [DIFF_FROM_RECORD_CONTENT]
+        // @leimo todo: 如何判断record不等价？ 是否ReturnSet能否转换成 标准Record
+        // rs.getType 返回 数据表类型code，（1）根据type_code执行反序列化。 （2）拼接 record 对象 （3）执行equals方法
         log.info(">>>>>>>>>>> [DataSyncValidator] result is {}", res);
+    }
+
+    private Map<String, Map<String, Long>> getTableCountMap(Map<String, Set<String>> rawSource, DataSource dataSource) {
+        Map<String, Map<String, Long>> recordCount = Maps.newHashMap();
+        for (Entry<String, Set<String>> entry : rawSource.entrySet()) {
+            String dbName = entry.getKey();
+            Set<String> tables = entry.getValue();
+            executeQuery(dataSource, getDBCountSQL(dbName, tables), (rs) -> {
+                try {
+                    while (rs.next()) {
+
+                        String tableName = rs.getString("table_name");
+                        Long totalCount = rs.getLong("total_count");
+                        Map<String, Long> tableRecordCount = recordCount.computeIfAbsent(dbName, (key) -> Maps.newHashMap());
+                        tableRecordCount.put(tableName, totalCount);
+                    }
+                } catch (SQLException e) {
+                    log.error("[DIFF_FROM_RECORD_NUM] fail", e);
+                }
+                return null;
+            });
+        }
+        return recordCount;
+    }
+
+    private String getDBCountSQL(String dbName, Set<String> tables) {
+        StringBuilder sb = new StringBuilder();
+        if (StringUtils.isEmpty(dbName) || tables == null || tables.isEmpty()) {
+            return null;
+        }
+        tables.stream().forEach((tableName) -> {
+            if (!sb.toString().isEmpty()) {
+                sb.append("UNION ALL \n");
+            }
+            sb.append("SELECT ").
+                    append("'").append(dbName).append("' ").append("db_name, ").
+                    append("'").append(tableName).append("' ").append("table_name, ").
+                    append("count(*) total_count FROM ").append(linkDBAndTable(dbName, tableName)).append(" \n");
+        });
+        return sb.toString();
+    }
+
+    public static String linkDBAndTable(String dbName, String tableName) {
+        String res = null;
+
+        if (dbName.contains("-")) {
+            res = "`" + dbName + "`" + "." + tableName;
+        } else {
+            res = dbName + "." + tableName;
+        }
+        return res;
     }
 
     private void mergeTemp2RawSource(Map<String, Set<String>> rawSource, Map<String, Set<String>> tempRawSource) {
@@ -174,7 +265,7 @@ public class DataSyncValidator implements InitializingBean {
             Integer start = 0;
 
             for (int i = 0; start == i * LIMIT; i++) {
-                Integer columnTotal = executeQuery(dataSource, getShowTableStructureSQL(tables), (rs) -> {
+                Integer columnTotal = executeQuery(dataSource, SHOW_TABLE_STRUCTURES_IN_DB, (rs) -> {
                     int columnTotal0 = 0;
                     try {
                         while (rs.next()) {// 存储单个column的结构
@@ -208,7 +299,7 @@ public class DataSyncValidator implements InitializingBean {
                         log.error("[ShowTableStructure] SQL execute fail", e);
                     }
                     return columnTotal0;
-                }, dbName, start);
+                }, dbName, start, LIMIT);
                 start += columnTotal;
             }
         }

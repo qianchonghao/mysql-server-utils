@@ -30,7 +30,7 @@ public abstract class DifferenceInfo {
     }
 
     public static String buildKey(String dbName, String tableName){
-        return dbName + "_" + tableName;
+        return dbName + "." + tableName;
     }
 
     /**
@@ -115,28 +115,28 @@ public abstract class DifferenceInfo {
 
         @Override
         DiffType getDiffType() {
-            return DiffType.DIFF_FROM_TABLE_STRUCTURE;
+            return DiffType.DIFF_FROM_RECORD_NUM;
         }
 
-        private long sourceNum;
-        private long targetNum;
+        private long sourceTotalCount;
+        private long targetTotalCount;
 
-        public long getSourceNum() {
-            return sourceNum;
+        public long getSourceTotalCount() {
+            return sourceTotalCount;
         }
 
-        public void setSourceNum(long sourceNum) {
-            this.sourceNum = sourceNum;
+        public void setSourceTotalCount(long sourceTotalCount) {
+            this.sourceTotalCount = sourceTotalCount;
         }
 
-        public long getTargetNum() {
-            return targetNum;
+        public long getTargetTotalCount() {
+            return targetTotalCount;
         }
 
-        public void setTargetNum(long targetNum) {
-            this.targetNum = targetNum;
+        public void setTargetTotalCount(long targetTotalCount) {
+            this.targetTotalCount = targetTotalCount;
         }
-        /**
+/**
          * @leimo todo: 对比 record内容
          *      1. get ids in source
          *      2. batch query target records in source ids
