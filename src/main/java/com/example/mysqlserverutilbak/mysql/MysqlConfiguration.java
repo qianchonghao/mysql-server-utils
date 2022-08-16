@@ -14,6 +14,7 @@ import java.io.InputStreamReader;
 import java.util.Map;
 
 @Configuration
+
 @Slf4j
 public class MysqlConfiguration {
     @Bean("sourceDataSource")
@@ -35,6 +36,13 @@ public class MysqlConfiguration {
         }
 
         return dataSource;
+    }
+
+    @Bean("validateConfig")
+    public ValidateConfig getValidateConfig(){
+        JSONObject json = getConfigChild("config");
+        ValidateConfig config = json.toJavaObject(ValidateConfig.class);
+        return config;
     }
 
     private JSONObject getConfigChild(String childKey) {

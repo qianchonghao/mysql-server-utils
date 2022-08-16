@@ -1,7 +1,7 @@
 {
   "source": {
     "driverClassName": "com.mysql.cj.jdbc.Driver",
-    "url": "jdbc:mysql://rm-bp14dfv73tvqb4io2-public.mysql.rds.aliyuncs.com:3306?&characterEncoding=UTF-8&useSSL=false&serverTimezone=GMT%2B8",
+    "url": "jdbc:mysql://rm-bp14dfv73tvqb4io2-public.mysql.rds.aliyuncs.com:3306?&characterEncoding=UTF-8&useSSL=false&serverTimezone=GMT%2B8&zeroDateTimeBehavior=convertToNull",
     "username": "global",
     "password": "QAZokm528",
     "initialSize": "4",
@@ -10,11 +10,19 @@
   },
   "target": {
     "driverClassName": "com.mysql.cj.jdbc.Driver",
-    "url": "jdbc:mysql://rm-bp14dfv73tvqb4io2-public.mysql.rds.aliyuncs.com:3306?&characterEncoding=UTF-8&useSSL=false&serverTimezone=GMT%2B8",
+    "url": "jdbc:mysql://rm-bp14dfv73tvqb4io2-public.mysql.rds.aliyuncs.com:3306?&characterEncoding=UTF-8&useSSL=false&serverTimezone=GMT%2B8&zeroDateTimeBehavior=convertToNull",
     "username": "global",
     "password": "QAZokm528",
     "initialSize": "4",
     "maxActive": "4",
     "maxWait": "60000"
+  },
+  "config": {
+    "corePoolSize": 60,
+    "maximumPoolSize": 100,
+    "keepAliveTime": 3000,
+    "coreTables": {
+      "xspace_account": ["xspace_servicer"]
+    }
   }
 }

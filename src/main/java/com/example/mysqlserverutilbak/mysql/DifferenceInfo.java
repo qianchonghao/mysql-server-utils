@@ -25,10 +25,6 @@ public abstract class DifferenceInfo {
 
     abstract DiffType getDiffType();
 
-    public String getKey(){
-        return buildKey(getDbName(),getTableName());
-    }
-
     public static String buildKey(String dbName, String tableName){
         return dbName + "." + tableName;
     }
@@ -39,15 +35,17 @@ public abstract class DifferenceInfo {
      * 2. db相同，缺少table
      * 3. tableName相同, 缺少column(table structure不同)。
      * 4. table structure相同， table content sum 不同。
+     * 5. table record 不同
      */
     public enum DiffType {
         MISS_DATABASE,
         MISS_TABLE,
         DIFF_FROM_TABLE_STRUCTURE,
-        DIFF_FROM_RECORD_NUM
+        DIFF_FROM_RECORD_NUM,
+        DIFF_FROM_RECORD_CONTENT
     }
 
-    // [MISS_DATABASE]
+    // 1. [MISS_DATABASE]
     public static class DBMissInfo extends DifferenceInfo {
         public static final String DB_MISS_TABLE = "*";
         public DBMissInfo(String dbName) {
@@ -61,7 +59,7 @@ public abstract class DifferenceInfo {
         }
     }
 
-    // [MISS_TABLE]
+    // 2. [MISS_TABLE]
     public static class TableMissInfo extends DifferenceInfo {
         public TableMissInfo(String dbName, String tableName) {
             super.setDbName(dbName);
@@ -74,7 +72,7 @@ public abstract class DifferenceInfo {
         }
     }
 
-    // [DIFF_FROM_TABLE_STRUCTURE]
+    // 3. [DIFF_FROM_TABLE_STRUCTURE]
     public static class TableStructureDiffInfo extends DifferenceInfo {
         public TableStructureDiffInfo(String dbName, String tableName) {
             super.setDbName(dbName);
@@ -106,7 +104,7 @@ public abstract class DifferenceInfo {
         }
     }
 
-    // [DIFF_FROM_RECORD_NUM]
+    // 4. [DIFF_FROM_RECORD_NUM]
     public static class RecordDiffInfo extends DifferenceInfo {
         public RecordDiffInfo(String dbName, String tableName) {
             super.setDbName(dbName);
@@ -136,11 +134,37 @@ public abstract class DifferenceInfo {
         public void setTargetTotalCount(long targetTotalCount) {
             this.targetTotalCount = targetTotalCount;
         }
-/**
-         * @leimo todo: 对比 record内容
-         *      1. get ids in source
-         *      2. batch query target records in source ids
-         *      3. foreach compare target record with source's
-         */
+    }
+
+    // 3. [DIFF_FROM_RECORD_CONTENT]
+    public static class RecordContentDiffInfo extends DifferenceInfo {
+        public RecordContentDiffInfo(String dbName, String tableName) {
+            super.setDbName(dbName);
+            super.setTableName(tableName);
+        }
+
+        @Override
+        DiffType getDiffType() {
+            return DiffType.DIFF_FROM_RECORD_CONTENT;
+        }
+
+        List<Record> recordsOnlyInSource;
+        List<Record> recordsOnlyInTarget;
+
+        public List<Record> getRecordsOnlyInSource() {
+            return recordsOnlyInSource;
+        }
+
+        public void setRecordsOnlyInSource(List<Record> recordsOnlyInSource) {
+            this.recordsOnlyInSource = recordsOnlyInSource;
+        }
+
+        public List<Record> getRecordsOnlyInTarget() {
+            return recordsOnlyInTarget;
+        }
+
+        public void setRecordsOnlyInTarget(List<Record> recordsOnlyInTarget) {
+            this.recordsOnlyInTarget = recordsOnlyInTarget;
+        }
     }
 }

@@ -25,7 +25,7 @@ public class ColumnStructure {
     private String columnType;
     private String columnKey;
     private String privileges;
-    private long ordinalPosition;
+    private Long ordinalPosition;
 
     @Override
     public boolean equals(Object o) {
@@ -38,5 +38,10 @@ public class ColumnStructure {
     @Override
     public int hashCode() {
         return Objects.hashCode(tableSchema, tableName, columnName, columnDefault, isNullable, dataType, characterMaximumLength, characterOctetLength, numericPrecision, numericScale, dataTimePrecision, characterSetName, collationName, columnType, columnKey, privileges, ordinalPosition);
+    }
+    public static enum columnKey{
+        PRI,
+        UNI,
+        MUL,
     }
 }
