@@ -1,8 +1,10 @@
 package com.example.mysqlserverutilbak.mysql;
 
 import lombok.Data;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.List;
+
 public abstract class DifferenceInfo {
     private String dbName;
     private String tableName;
@@ -25,7 +27,7 @@ public abstract class DifferenceInfo {
 
     abstract DiffType getDiffType();
 
-    public static String buildKey(String dbName, String tableName){
+    public static String buildKey(String dbName, String tableName) {
         return dbName + "." + tableName;
     }
 
@@ -42,12 +44,14 @@ public abstract class DifferenceInfo {
         MISS_TABLE,
         DIFF_FROM_TABLE_STRUCTURE,
         DIFF_FROM_RECORD_NUM,
-        DIFF_FROM_RECORD_CONTENT
+        DIFF_FROM_RECORD_CONTENT,
+        MISS_PRIMARY_KEY
     }
 
     // 1. [MISS_DATABASE]
     public static class DBMissInfo extends DifferenceInfo {
         public static final String DB_MISS_TABLE = "*";
+
         public DBMissInfo(String dbName) {
             super.setDbName(dbName);
             super.setTableName(DB_MISS_TABLE);
@@ -105,8 +109,8 @@ public abstract class DifferenceInfo {
     }
 
     // 4. [DIFF_FROM_RECORD_NUM]
-    public static class RecordDiffInfo extends DifferenceInfo {
-        public RecordDiffInfo(String dbName, String tableName) {
+    public static class RecordCountDiffInfo extends DifferenceInfo {
+        public RecordCountDiffInfo(String dbName, String tableName) {
             super.setDbName(dbName);
             super.setTableName(tableName);
         }
@@ -136,7 +140,7 @@ public abstract class DifferenceInfo {
         }
     }
 
-    // 3. [DIFF_FROM_RECORD_CONTENT]
+    // 5. [DIFF_FROM_RECORD_CONTENT]
     public static class RecordContentDiffInfo extends DifferenceInfo {
         public RecordContentDiffInfo(String dbName, String tableName) {
             super.setDbName(dbName);
@@ -150,6 +154,15 @@ public abstract class DifferenceInfo {
 
         List<Record> recordsOnlyInSource;
         List<Record> recordsOnlyInTarget;
+        List<Pair<Record, Record>> samePkDiffValues;
+
+        public List<Pair<Record, Record>> getSamePkDiffValues() {
+            return samePkDiffValues;
+        }
+
+        public void setSamePkDiffValues(List<Pair<Record, Record>> samePkDiffValues) {
+            this.samePkDiffValues = samePkDiffValues;
+        }
 
         public List<Record> getRecordsOnlyInSource() {
             return recordsOnlyInSource;
@@ -165,6 +178,20 @@ public abstract class DifferenceInfo {
 
         public void setRecordsOnlyInTarget(List<Record> recordsOnlyInTarget) {
             this.recordsOnlyInTarget = recordsOnlyInTarget;
+        }
+    }
+
+    // 6. [MISS_PRIMARY_KEY]
+    public static class MissPrimaryKeyInfo extends DifferenceInfo {
+
+        public MissPrimaryKeyInfo(String dbName, String tableName) {
+            super.setDbName(dbName);
+            super.setTableName(tableName);
+        }
+
+        @Override
+        DiffType getDiffType() {
+            return DiffType.MISS_PRIMARY_KEY;
         }
     }
 }

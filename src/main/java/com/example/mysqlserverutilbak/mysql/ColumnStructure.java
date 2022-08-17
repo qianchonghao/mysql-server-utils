@@ -28,6 +28,29 @@ public class ColumnStructure {
     private Long ordinalPosition;
 
     @Override
+    public String toString() {
+        return "ColumnStructure{" +
+                "tableSchema='" + tableSchema + '\'' +
+                ", tableName='" + tableName + '\'' +
+                ", columnName='" + columnName + '\'' +
+                ", columnDefault='" + columnDefault + '\'' +
+                ", isNullable='" + isNullable + '\'' +
+                ", dataType='" + dataType + '\'' +
+                ", characterMaximumLength=" + characterMaximumLength +
+                ", characterOctetLength=" + characterOctetLength +
+                ", numericPrecision=" + numericPrecision +
+                ", numericScale=" + numericScale +
+                ", dataTimePrecision='" + dataTimePrecision + '\'' +
+                ", characterSetName='" + characterSetName + '\'' +
+                ", collationName='" + collationName + '\'' +
+                ", columnType='" + columnType + '\'' +
+                ", columnKey='" + columnKey + '\'' +
+                ", privileges='" + privileges + '\'' +
+                ", ordinalPosition=" + ordinalPosition +
+                '}';
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -39,6 +62,7 @@ public class ColumnStructure {
     public int hashCode() {
         return Objects.hashCode(tableSchema, tableName, columnName, columnDefault, isNullable, dataType, characterMaximumLength, characterOctetLength, numericPrecision, numericScale, dataTimePrecision, characterSetName, collationName, columnType, columnKey, privileges, ordinalPosition);
     }
+
     public static enum columnKey{
         PRI,
         UNI,

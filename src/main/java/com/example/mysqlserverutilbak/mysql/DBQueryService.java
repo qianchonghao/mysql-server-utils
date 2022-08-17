@@ -7,6 +7,7 @@ import com.google.common.collect.Sets;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
@@ -18,7 +19,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static com.example.mysqlserverutilbak.mysql.util.SqlUtils.executeQuery;
-
+import static com.example.mysqlserverutilbak.mysql.Record.*;
 /**
  * @Author qch
  * @Date 2022/8/16 3:12 下午
@@ -26,6 +27,9 @@ import static com.example.mysqlserverutilbak.mysql.util.SqlUtils.executeQuery;
 @Component
 @Slf4j
 public class DBQueryService {
+    @Autowired
+    private ValidateConfig config;
+
     private static final Set EXCLUSIVE_DATABASES = ImmutableSet.of("mysql", "performance_schema", "sys", "information_schema");
 
     private static final Set STRING_TYPE = ImmutableSet.of("varchar", "longtext", "tinytext", "mediumtext", "text");
@@ -38,6 +42,8 @@ public class DBQueryService {
 
     public static final int LIMIT = 500;
 
+    private Set<String> excludeDB;
+
     // 1. show database
     public Set<String> getAllDBInDataSource(DataSource dataSource) {
         Set<String> dbNames = executeQuery(dataSource, SHOW_DB, (rs) -> {
@@ -45,7 +51,7 @@ public class DBQueryService {
             try {
                 while (rs.next()) {
                     String dbName = rs.getString(1);
-                    if (!EXCLUSIVE_DATABASES.contains(dbName)) {
+                    if (!config.getExcludeDataBase().contains(dbName)) {
                         dbNames0.add(dbName);
                     }
                 }
@@ -59,12 +65,16 @@ public class DBQueryService {
 
     // 2. show tables from ${db_name}
     public Set<String> getTables(DataSource dataSource, String dbName) {
+        Set<String> excludeTables = config.getExcludeDBAndTable().computeIfAbsent(dbName, key -> Sets.newHashSet());
+
         Set<String> tableNames = executeQuery(dataSource, buildShowTablesSQL(dbName), (rs) -> {
             Set<String> tableNames0 = Sets.newHashSet();
             try {
                 while (rs.next()) {
                     String tableName = rs.getString(1);
-                    tableNames0.add(tableName);
+                    if (!excludeTables.contains(tableName)) {
+                        tableNames0.add(tableName);
+                    }
                 }
             } catch (SQLException e) {
                 log.error("[DBCheck]: query tables fail", e);
@@ -194,8 +204,8 @@ public class DBQueryService {
                 sb.append("UNION ALL \n");
             }
             sb.append("SELECT ").
-                    append(enhanceWithBackQuote(dbName)).append("db_name, ").
-                    append("'").append(tableName).append("' ").append("table_name, ").
+                    append(enhanceWithQuote(dbName)).append(" db_name, ").
+                    append(enhanceWithQuote(tableName)).append(" table_name, ").
                     append("count(*) total_count FROM ").append(getDBTableKey(dbName, tableName)).append(" \n");
         });
         return sb.toString();
@@ -206,25 +216,10 @@ public class DBQueryService {
     }
 
     // 5. 批量顺序查询 source records， 每批次500条
-    public List<Record> querySourceRecords(DataSource sourceDataSource, List<ColumnStructure> primaryColStructures, int start) {
-        Pair<String, String> db2Table = getDBInfoInStructure(primaryColStructures);
-        String dbName = db2Table.getLeft();
-        String tableName = db2Table.getRight();
-
+    public Map<PrimaryKeys,Record> querySourceRecords(DataSource sourceDataSource, String dbName, String tableName, List<ColumnStructure> primaryColStructures, int start) {
         return executeQuery(sourceDataSource,
                 getQueryRecordsInOrderSQL(dbName, tableName),
                 rs -> getRecordsFromResultSet(primaryColStructures, rs), start, LIMIT);
-    }
-
-    private Pair<String, String> getDBInfoInStructure(List<ColumnStructure> colStructures) {
-        ColumnStructure columnStructure = colStructures.stream().findFirst().orElse(null);
-        if (columnStructure == null) {
-            log.error("getDBTableNameInStructure fail");
-        }
-
-        String dbName = columnStructure.getTableSchema();
-        String tableName = columnStructure.getTableName();
-        return Pair.of(dbName, tableName);
     }
 
     private String getQueryRecordsInOrderSQL(String dbName, String tableName) {
@@ -233,8 +228,8 @@ public class DBQueryService {
         return sb.toString();
     }
 
-    private List<Record> getRecordsFromResultSet(List<ColumnStructure> primaryColStructures, ResultSet rs) {
-        List<Record> records = Lists.newArrayList();
+    private Map<PrimaryKeys,Record> getRecordsFromResultSet(List<ColumnStructure> primaryColStructures, ResultSet rs) {
+        Map<PrimaryKeys,Record> res = new HashMap<>();
         try {
             while (rs.next()) {
                 Record record = new Record();
@@ -257,74 +252,72 @@ public class DBQueryService {
 
                 record.setColumnValues(columnValues);
                 record.setPrimaryColValues(primaryColValues);
-                records.add(record);
+                res.put(new PrimaryKeys(primaryColValues),record);
             }
 
         } catch (SQLException e) {
             log.error("[query records fail]", e);
         }
-        return records;
+        return res;
     }
 
     // 6. 根据source records 提供的 primaryKeys，查询target
-    public List<Record> queryTargetRecords(DataSource targetDataSource, List<ColumnStructure> primaryColStructures, int start, List<Record> sourceRecords) {
-        Pair<String, String> db2Table = getDBInfoInStructure(primaryColStructures);
-        String dbName = db2Table.getLeft();
-        String tableName = db2Table.getRight();
-
+    public Map<PrimaryKeys,Record> queryTargetRecords(DataSource targetDataSource, String dbName, String tableName, List<ColumnStructure> primaryColStructures, int start, List<Record> sourceRecords) {
         return executeQuery(targetDataSource,
                 getQueryRecordsInPKSQL(dbName, tableName, primaryColStructures, sourceRecords),
-                rs -> getRecordsFromResultSet(primaryColStructures, rs), start, LIMIT);
+                rs -> getRecordsFromResultSet(primaryColStructures, rs));
     }
 
     private String getQueryRecordsInPKSQL(String dbName, String tableName, List<ColumnStructure> primaryColStructures, List<Record> sourceRecords) {
         StringBuilder sb = new StringBuilder();
 
-        sb.append("SELECT * FROM ").
-                append(getDBTableKey(dbName, tableName)).
-                append(" WHERE ").
-                append(defaultBuildInCondition(primaryColStructures, columnStructure -> enhanceWithBackQuote(columnStructure.getColumnName()))).
-                append(" in ").
-                append(defaultBuildInCondition(sourceRecords, record ->
-                        defaultBuildInCondition(record.getPrimaryColValues(), (pkPair) -> {
-                            // @leimo todo : pk的type支持 varchar，bigInt等, Map<type, @sqlStringBuilder@>
-                            Object value = pkPair.getLeft();
-                            ColumnStructure columnStructure = pkPair.getRight();
-                            String res = value.toString();
-                            if (STRING_TYPE.contains(columnStructure.getColumnName())) {
-                                res = enhanceWithQuote(value.toString());
-                            }
-                            return res;
-                        }))).
-                append(" LIMIT ?,?");
+        try {
+            sb.append("SELECT * FROM ").
+                    append(getDBTableKey(dbName, tableName)).
+                    append(" WHERE ").
+                    append(defaultBuildSqlWithBracket(primaryColStructures, columnStructure -> enhanceWithBackQuote(columnStructure.getColumnName()))).
+                    append(" in ").
+                    append(defaultBuildSqlWithBracket(sourceRecords, record -> {
+                                if (record == null) {
+                                    List<String> nulls = primaryColStructures.stream().map(columnStructure -> "NULL").collect(Collectors.toList());
+                                    if (nulls == null || nulls.isEmpty()) {
+                                        nulls = Lists.newArrayList("NULL");
+                                    }
+                                    return defaultBuildSqlWithBracket(nulls, nullStr -> nullStr);
+                                }
+                                return defaultBuildSqlWithBracket(record.getPrimaryColValues(), (pkPair) -> {
+                                    // @leimo todo : pk的type支持 varchar，bigInt等, Map<type, @sqlStringBuilder@>
+                                    Object value = pkPair.getLeft();
+                                    ColumnStructure columnStructure = pkPair.getRight();
+                                    String res = value.toString();
+                                    if (STRING_TYPE.contains(columnStructure.getDataType())) {
+                                        res = enhanceWithQuote(value.toString());
+                                    }
+                                    return res;
+                                });
+                            }));
+        } catch (Exception e) {
+            log.error("getQueryRecordsInPKSQL fail, dbName = {}, tableName = {}",dbName,tableName);
+        }
         return sb.toString();
     }
 
-
-    public abstract class MysqlTypeHandler {
-        abstract String getType();
+    // withBracket 返回(e1,e2,e3...)，partStrProvider 返回e1的具体string内容
+    private <T> String defaultBuildSqlWithBracket(Collection<T> collection, Function<T, String> partStrProvider) {
+        return buildSqlWithBracket(collection, partStrProvider, "(", ",", ")");
     }
 
-    public class DefaultHandler extends MysqlTypeHandler {
+    private <T> String buildSqlWithBracket(Collection<T> collection, Function<T, String> partStrProvider, String begin, String separator, String end) {
 
-        @Override
-        String getType() {
-            return null;
-        }
-    }
-
-    private <T> String defaultBuildInCondition(Collection<T> collection, Function<T, String> partStrProvider) {
-        return buildInCondition(collection, partStrProvider, "(", ",", ")");
-    }
-
-    private <T> String buildInCondition(Collection<T> collection, Function<T, String> partStrProvider, String begin, String separator, String end) {
-        if (collection == null || collection.isEmpty()) {
-            return "(NULL)";
-        }
         Iterator<T> it = collection.iterator();
 
         StringBuilder res = new StringBuilder();
         res.append(begin);
+
+        // 当collection空时，执行partStrProvider逻辑，获取(null,null,...)
+        if(collection == null || collection.isEmpty()) {
+            res.append(partStrProvider.apply(null));
+        }
 
         while (it.hasNext()) {
             T ele = it.next();

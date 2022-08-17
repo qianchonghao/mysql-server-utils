@@ -50,7 +50,7 @@ public class SqlUtils {
             rs = ps.executeQuery();
             return func.apply(rs);
         } catch (SQLException e) {
-            log.error("execute sql query fail",e);
+            log.error("execute sql query fail, sql = {}",sql,e);
             return null;
         } finally {
             try {

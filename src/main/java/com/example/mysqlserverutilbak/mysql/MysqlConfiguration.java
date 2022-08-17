@@ -4,6 +4,7 @@ import com.alibaba.druid.pool.DruidDataSourceFactory;
 import com.alibaba.fastjson.JSONObject;
 import com.google.common.io.CharStreams;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -12,6 +13,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Configuration
 
@@ -42,6 +45,13 @@ public class MysqlConfiguration {
     public ValidateConfig getValidateConfig(){
         JSONObject json = getConfigChild("config");
         ValidateConfig config = json.toJavaObject(ValidateConfig.class);
+
+        Set<String> excludeDatabase = config.getExcludeDBAndTable().entrySet().stream().filter(entry -> {
+                    Set<String> tables = entry.getValue();
+                    return tables != null && tables.size() == 1 && StringUtils.equals("*", tables.stream().findFirst().orElse(null));}).
+                map(entry->entry.getKey()).collect(Collectors.toSet());
+
+        config.setExcludeDataBase(excludeDatabase);
         return config;
     }
 
