@@ -1,10 +1,10 @@
 package com.example.mysqlserverutilbak.mysql;
 
-import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.List;
-
+@Slf4j
 public abstract class DifferenceInfo {
     private String dbName;
     private String tableName;
@@ -31,6 +31,9 @@ public abstract class DifferenceInfo {
         return dbName + "." + tableName;
     }
 
+    // 差异项 -> String
+    public abstract String toString();
+
     /**
      * 差异的类型： 与source比较,
      * 1. 缺少db
@@ -40,14 +43,24 @@ public abstract class DifferenceInfo {
      * 5. table record 不同
      */
     public enum DiffType {
-        MISS_DATABASE,
-        MISS_TABLE,
-        DIFF_FROM_TABLE_STRUCTURE,
-        DIFF_FROM_RECORD_NUM,
-        DIFF_FROM_RECORD_CONTENT,
-        MISS_PRIMARY_KEY,
-        OUT_OF_LIMIT;
-//        abstract
+        MISS_DATABASE("目标数据源缺少以下数据库"),
+        MISS_TABLE("目标数据源缺少以下数据表"),
+        DIFF_FROM_TABLE_STRUCTURE("以下数据表结构存在差异"),
+        DIFF_FROM_RECORD_NUM("以下数据表记录总数存在差异"),
+        DIFF_FROM_RECORD_CONTENT("以下数据表记录内容存在差异"),
+        MISS_PRIMARY_KEY("以下数据表不存在primary key，无法对比记录内容"),
+        OUT_OF_LIMIT("以下数据表的记录总数超过最大限制，并未对比全部记录内容");
+
+        private String titleContent;
+
+        DiffType(String titleContent) {
+            this.titleContent = titleContent;
+        }
+
+        public String getTitle(String prefix){
+            String diffTitleFormat = ">>>>>>>>>>>>>>>> " + prefix + " %s <<<<<<<<<<<<<<<<<<";
+            return String.format(diffTitleFormat,titleContent);
+        }
     }
 
     // 1. [MISS_DATABASE]
@@ -63,6 +76,11 @@ public abstract class DifferenceInfo {
         DiffType getDiffType() {
             return DiffType.MISS_DATABASE;
         }
+
+        @Override
+        public String toString() {
+            return getDbName();
+        }
     }
 
     // 2. [MISS_TABLE]
@@ -75,6 +93,11 @@ public abstract class DifferenceInfo {
         @Override
         DiffType getDiffType() {
             return DiffType.MISS_TABLE;
+        }
+
+        @Override
+        public String toString() {
+            return buildKey(getDbName(), getTableName());
         }
     }
 
@@ -92,6 +115,25 @@ public abstract class DifferenceInfo {
 
         List<ColumnStructure> columnsOnlyInSource;
         List<ColumnStructure> columnsOnlyInTarget;
+
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(">>>>>>>>>>>>>>>> 数据库名称 = ").append(getDbName()).append(" 数据表名称 = ").append(getTableName()).append("\n");
+
+            sb.append(">>>>>>>>>>>>>>>> 仅source数据源存在的列结构 \n");
+            getColumnsOnlyInSource().stream().forEach((columnStructure) -> {
+                sb.append(columnStructure.toString()).append("\n");
+            });
+
+            sb.append(">>>>>>>>>>>>>>>> 仅存在target数据源的列结构 \n");
+            getColumnsOnlyInTarget().stream().forEach((columnStructure) -> {
+                sb.append(columnStructure.toString()).append("\n");
+            });
+
+            return sb.toString();
+        }
 
         public List<ColumnStructure> getColumnsOnlyInSource() {
             return columnsOnlyInSource;
@@ -125,6 +167,15 @@ public abstract class DifferenceInfo {
         private long sourceTotalCount;
         private long targetTotalCount;
 
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(">>>>>>>>>>>>>>>> 数据库名称 = ").append(getDbName()).append(" 数据表名称 = ").append(getTableName()).
+                    append(" 源数据表记录总数 = ").append(getSourceTotalCount()).append(" 目标数据表记录总数 = ").append(getTargetTotalCount());
+            log.info("countDiffToString string = {}", sb.toString());
+            return sb.toString();
+        }
+
         public long getSourceTotalCount() {
             return sourceTotalCount;
         }
@@ -157,6 +208,34 @@ public abstract class DifferenceInfo {
         List<Record> recordsOnlyInSource;
         List<Record> recordsOnlyInTarget;
         List<Pair<Record, Record>> samePkDiffValues;
+
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(">>>>>>>>>>>>>>>> 数据库名称 = ").append(getDbName()).append(" 数据表名称 = ").append(getTableName()).append("\n");
+
+            sb.append(">>>>>>>>>>>>>>>> 仅source数据源存在的记录").append("\n");
+            getRecordsOnlyInSource().stream().forEach(record -> {
+                sb.append("[source only]").append(record.toString()).append("\n");
+            });
+
+            sb.append(">>>>>>>>>>>>>>>> source和target同时存在但内容有差异的记录").append("\n");
+            getSamePkDiffValues().stream().forEach(pair -> {
+                sb.append("[source]").append(pair.getLeft().toString()).append("\n").
+                        append("[target]").append(pair.getRight().toString()).append("\n");
+
+            });
+
+            sb.append(">>>>>>>>>>>>>>>> 仅target数据源存在的记录").append("\n");
+            getRecordsOnlyInTarget().stream().forEach(record -> {
+                sb.append("[target]").append(record.toString()).append("\n");
+
+            });
+
+            log.info("contentDiffToString string = {}", sb.toString());
+            return sb.toString();
+        }
 
         public List<Pair<Record, Record>> getSamePkDiffValues() {
             return samePkDiffValues;
@@ -195,6 +274,11 @@ public abstract class DifferenceInfo {
         DiffType getDiffType() {
             return DiffType.MISS_PRIMARY_KEY;
         }
+
+        @Override
+        public String toString() {
+            return buildKey(getDbName(), getTableName());
+        }
     }
 
     // 7. [OUT_OF_LIMIT]
@@ -212,14 +296,9 @@ public abstract class DifferenceInfo {
             return DiffType.OUT_OF_LIMIT;
         }
 
-        boolean outOfLimit = false;
-
-        public boolean getOutOfLimit() {
-            return outOfLimit;
-        }
-
-        public void setOutOfLimit(boolean outOfLimit) {
-            this.outOfLimit = outOfLimit;
+        @Override
+        public String toString() {
+            return buildKey(getDbName(), getTableName());
         }
     }
 }

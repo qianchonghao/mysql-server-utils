@@ -1,6 +1,7 @@
 package com.example.mysqlserverutilbak.mysql;
 
 import com.example.mysqlserverutilbak.mysql.log.CoreMarker;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Streams;
@@ -32,6 +33,8 @@ public class DiffInfoRegistry {
     // key = DiffType, value = <DiffKey, differenceInfo>
     private Map<DiffType, Map<String, DifferenceInfo>> differences = Maps.newHashMap();
     private Map<DiffType, Map<String, DifferenceInfo>> coreDifferences = Maps.newHashMap();
+
+    private static final Set<DiffType> EXCLUDE_CORE_DIFF = ImmutableSet.of(DiffType.OUT_OF_LIMIT);
 
     public void registerDiffInfo(DifferenceInfo differenceInfo) {
 
@@ -74,15 +77,15 @@ public class DiffInfoRegistry {
             log.error("create report file fail", e);
         }
 
-        String diffTitleFormat = ">>>>>>>>>>>>>>>> " + prefix + " %s <<<<<<<<<<<<<<<<<<";
+        String diffTitleFormat = ">>>>>>>>>>>>>>>> " + prefix + " %s <<<<<<<<<<<<<<<<<< \n";
 
         if (resultType == ResultType.CORE) {
             Map<String, DifferenceInfo> coreDiff = differences0.entrySet().stream().
-                    filter(entry -> !entry.getValue().isEmpty()).
+                    filter(entry -> !entry.getValue().isEmpty() && !EXCLUDE_CORE_DIFF.contains(entry.getKey())).
                     map(entry -> entry.getValue()).findFirst().orElse(null);
             String result = coreDiff == null ?
-                    String.format(diffTitleFormat, "source数据源和target数据源，内容一致，数据同步成功\n") :
-                    String.format(diffTitleFormat, "source数据源和target数据源，内容不一致，数据同步失败\n");
+                    String.format(diffTitleFormat, "source数据源和target数据源，内容一致，数据同步成功") :
+                    String.format(diffTitleFormat, "source数据源和target数据源，内容不一致，数据同步失败");
             try {
                 IOUtils.write(result, os);
             } catch (IOException e) {
@@ -90,35 +93,10 @@ public class DiffInfoRegistry {
             }
         }
 
-//        differences0.entrySet().stream().forEach((entry)->{
-//            OutputStream os = null;
-//            try {
-//                os = new FileOutputStream(file);
-//            } catch (FileNotFoundException e) {
-//                log.error("create report file fail", e);
-//            }
-//
-//            writeReportFromDiffInfo(os,entry.getValue(),diffInfo->diffInfo.getDbName(),String.format(diffTitleFormat,"aa"));
-//        });
-
-        writeReportFromDiffInfo(os, differences0.computeIfAbsent(DiffType.MISS_DATABASE, key -> Maps.newHashMap()),
-                diffInfo -> diffInfo.getDbName(), String.format(diffTitleFormat, "目标数据源缺少以下数据库"));
-
-        writeReportFromDiffInfo(os, differences0.computeIfAbsent(DiffType.MISS_TABLE, key -> Maps.newHashMap()),
-                diffInfo -> buildKey(diffInfo.getDbName(), diffInfo.getTableName()), String.format(diffTitleFormat, "目标数据源缺少以下数据表"));
-
-        writeReportFromDiffInfo(os, differences0.computeIfAbsent(DiffType.DIFF_FROM_TABLE_STRUCTURE, key -> Maps.newHashMap()),
-                diffInfo -> structureDiffToString((TableStructureDiffInfo) diffInfo), String.format(diffTitleFormat, "以下数据表结构存在差异"));
-
-        writeReportFromDiffInfo(os, differences0.computeIfAbsent(DiffType.DIFF_FROM_RECORD_NUM, key -> Maps.newHashMap()),
-                diffInfo -> countDiffToString((RecordCountDiffInfo) diffInfo), String.format(diffTitleFormat, "以下数据表记录总数存在差异"));
-
-        writeReportFromDiffInfo(os, differences0.computeIfAbsent(DiffType.DIFF_FROM_RECORD_CONTENT, key -> Maps.newHashMap()),
-                diffInfo -> contentDiffToString((RecordContentDiffInfo) diffInfo), String.format(diffTitleFormat, "以下数据表记录内容存在差异"));
-
-        writeReportFromDiffInfo(os, differences0.computeIfAbsent(DiffType.MISS_PRIMARY_KEY, key -> Maps.newHashMap()),
-                diffInfo -> buildKey(diffInfo.getDbName(), diffInfo.getTableName()), String.format(diffTitleFormat, "以下数据表不存在primary key，无法对比记录内容"));
-
+        OutputStream finalOs = os;
+        differences0.entrySet().stream().forEach((entry) -> {
+            writeReportFromDiffInfo(finalOs, differences0, entry.getKey(), prefix);
+        });
 
         try {
             log.info(IOUtils.toString(file.toURI()));
@@ -128,64 +106,14 @@ public class DiffInfoRegistry {
         }
     }
 
-    private String countDiffToString(RecordCountDiffInfo countDiffInfo) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(">>>>>>>>>>>>>>>> 数据库名称 = ").append(countDiffInfo.getDbName()).append(" 数据表名称 = ").append(countDiffInfo.getTableName()).
-                append(" 源数据表记录总数 = ").append(countDiffInfo.getSourceTotalCount()).append(" 目标数据表记录总数 = ").append(countDiffInfo.getTargetTotalCount());
-        log.info("countDiffToString string = {}", sb.toString());
-        return sb.toString();
-    }
-
-    private String structureDiffToString(TableStructureDiffInfo structureDiffInfo) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(">>>>>>>>>>>>>>>> 数据库名称 = ").append(structureDiffInfo.getDbName()).append(" 数据表名称 = ").append(structureDiffInfo.getTableName()).append("\n");
-
-        sb.append(">>>>>>>>>>>>>>>> 仅source数据源存在的列结构 \n");
-        structureDiffInfo.getColumnsOnlyInSource().stream().forEach((columnStructure) -> {
-            sb.append(columnStructure.toString()).append("\n");
-        });
-
-        sb.append(">>>>>>>>>>>>>>>> 仅存在target数据源的列结构 \n");
-        structureDiffInfo.getColumnsOnlyInTarget().stream().forEach((columnStructure) -> {
-            sb.append(columnStructure.toString()).append("\n");
-        });
-
-        return sb.toString();
-    }
-
-    private String contentDiffToString(RecordContentDiffInfo contentDiffInfo) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(">>>>>>>>>>>>>>>> 数据库名称 = ").append(contentDiffInfo.getDbName()).append(" 数据表名称 = ").append(contentDiffInfo.getTableName()).append("\n");
-
-        sb.append(">>>>>>>>>>>>>>>> 仅source数据源存在的记录").append("\n");
-        contentDiffInfo.getRecordsOnlyInSource().stream().forEach(record -> {
-            sb.append("[source only]").append(record.toString()).append("\n");
-        });
-
-        sb.append(">>>>>>>>>>>>>>>> source和target同时存在但内容有差异的记录").append("\n");
-        contentDiffInfo.getSamePkDiffValues().stream().forEach(pair -> {
-            sb.append("[source]").append(pair.getLeft().toString()).append("\n").
-                    append("[target]").append(pair.getRight().toString()).append("\n");
-
-        });
-
-        sb.append(">>>>>>>>>>>>>>>> 仅target数据源存在的记录").append("\n");
-        contentDiffInfo.getRecordsOnlyInTarget().stream().forEach(record -> {
-            sb.append("[target]").append(record.toString()).append("\n");
-
-        });
-
-        log.info("contentDiffToString string = {}", sb.toString());
-        return sb.toString();
-    }
-
-    private void writeReportFromDiffInfo(OutputStream os, Map<String, DifferenceInfo> differenceInfoMap, Function<DifferenceInfo, String> lineProvider, String start) {
+    private void writeReportFromDiffInfo(OutputStream os, Map<DiffType, Map<String, DifferenceInfo>> differences0, DiffType diffType, String prefix) {
+        Map<String, DifferenceInfo> differenceInfoMap = differences0.get(diffType);
         List<String> content = Lists.newArrayList();
-        content.add(start);
+        content.add(diffType.getTitle(prefix));
 
         content.addAll(Streams.mapWithIndex(differenceInfoMap.entrySet().stream(), (entry, index) -> {
             StringBuilder res = new StringBuilder();
-            res.append(index + 1).append(". ").append(lineProvider.apply(entry.getValue()));
+            res.append(index + 1).append(". ").append(entry.getValue().toString());
             return res.toString();
         }).collect(Collectors.toList()));
 
