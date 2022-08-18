@@ -60,8 +60,8 @@ public class DataSyncValidator implements InitializingBean {
 
         stopWatch.start();
         // 1. [MISS_DATABASE]： 构建差集，关注 source具备，但是target不具备的 datasource。
-        Set<String> targetDBNames = DBQueryService.getAllDBInDataSource(targetDataSource);
         Set<String> sourceDBNames = DBQueryService.getAllDBInDataSource(sourceDataSource);
+        Set<String> targetDBNames = DBQueryService.getAllDBInDataSource(targetDataSource);
         stopWatch.stop();
         log.info("[MISS_DATABASE-0]: the consuming is {} ms", stopWatch.getLastTaskTimeMillis());
         stopWatch.start();
@@ -224,8 +224,9 @@ public class DataSyncValidator implements InitializingBean {
 
                             // db.table级别的record校验，每批次校验500条数据内容
                             int start = 0;
+                            int i = 0;
                             // diffInfo 不存储所有差异record，避免内存溢出
-                            for (int i = 0; start == i * LIMIT && diffInfo.getRecordsOnlyInSource().size() < RECORD_STORAGE_LIMIT && diffInfo.getRecordsOnlyInTarget().size() < RECORD_STORAGE_LIMIT; i++) {
+                            for (; start == i * LIMIT && i< OutOfLimitInfo.RECORD_COMPARE_LIMIT && diffInfo.getRecordsOnlyInSource().size() < RECORD_STORAGE_LIMIT && diffInfo.getRecordsOnlyInTarget().size() < RECORD_STORAGE_LIMIT; i++) {
                                 Map<PrimaryKeys, Record> sourceRecords = DBQueryService.querySourceRecords(sourceDataSource, dbName, tableName, primaryColStructures, start);
                                 Map<PrimaryKeys, Record> targetRecords = DBQueryService.queryTargetRecords(targetDataSource, dbName, tableName, primaryColStructures, start, Lists.newArrayList(sourceRecords.values()));
 
@@ -248,6 +249,11 @@ public class DataSyncValidator implements InitializingBean {
                                 start += sourceRecords.size();
                             }
 
+                            // 7. OUT_OF_LIMIT
+                            if (i >= OutOfLimitInfo.RECORD_COMPARE_LIMIT) {
+                                registry.registerDiffInfo(new OutOfLimitInfo(dbName, tableName));
+                            }
+
                             if (!diffInfo.getRecordsOnlyInTarget().isEmpty() || !diffInfo.getRecordsOnlyInSource().isEmpty() || !diffInfo.getSamePkDiffValues().isEmpty()) {
                                 registry.registerDiffInfo(diffInfo);
                             }
@@ -258,9 +264,9 @@ public class DataSyncValidator implements InitializingBean {
                         latch.countDown();
                         log.info("latch countDown, current value is {}, dbName = {}, tableName = {}", latch.getCount(), dbName, tableName);
                         rawSource.computeIfAbsent(dbName, key -> Sets.newHashSet()).remove(tableName);
-//                        if (latch.getCount() < 5) {
-//                            log.info("remain rawSource = {}", rawSource);
-//                        }
+                        if (latch.getCount() < 5) {
+                            log.info("remain rawSource = {}", rawSource);
+                        }
                     }
                 });
             }
@@ -269,7 +275,8 @@ public class DataSyncValidator implements InitializingBean {
         try {
             latch.await();
             executor.shutdown();
-            registry.printResult();
+            registry.printCoreResult();
+            registry.printAllResult();
         } catch (InterruptedException e) {
             log.error("[DataSyncValidator] countDownLatch await fail", e);
         }

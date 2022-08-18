@@ -24,6 +24,13 @@
     "coreTables": {
       "xspace_account": ["xspace_servicer"]
     },
-    "excludeDataBase": ["nacos","power_job"]
+    "excludeDBAndTable": {
+      "mysql": ["*"],
+      "performance_schema": ["*"],
+      "sys": ["*"],
+      "information_schema": ["*"],
+      "nacos": ["*"],
+      "power_job": ["*"]
+    }
   }
 }

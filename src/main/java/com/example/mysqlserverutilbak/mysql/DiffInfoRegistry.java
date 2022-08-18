@@ -12,10 +12,7 @@ import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,14 +49,23 @@ public class DiffInfoRegistry {
         differences.computeIfAbsent(diffType, (key) -> Maps.newTreeMap()).put(buildKey(dbName, tableName), differenceInfo);
     }
 
-    public void printResult() {
+    public void printCoreResult() {
+        printResult(coreDifferences, ResultType.CORE);
+    }
 
-        File file = new File("log/report.txt");
+    public void printAllResult() {
+        printResult(differences, ResultType.ALL);
+    }
+
+    private void printResult(Map<DiffType, Map<String, DifferenceInfo>> differences0, ResultType resultType) {
+        String prefix = resultType.getPrefix();
+        String filePrefix = resultType.getName();
+
+        File file = new File(String.format("log/%s-report.txt", filePrefix));
         if (file.exists()) {
             file.delete();
         }
         file.getParentFile().mkdirs();
-
         OutputStream os = null;
         try {
             file.createNewFile();
@@ -68,27 +74,54 @@ public class DiffInfoRegistry {
             log.error("create report file fail", e);
         }
 
-        writeReportFromDiffInfo(os, differences.computeIfAbsent(DiffType.MISS_DATABASE, key -> Maps.newHashMap()),
-                diffInfo -> diffInfo.getDbName(), ">>>>>>>>>>>>>>>> 目标数据源缺少以下数据库： ");
+        String diffTitleFormat = ">>>>>>>>>>>>>>>> " + prefix + " %s <<<<<<<<<<<<<<<<<<";
 
-        writeReportFromDiffInfo(os, differences.computeIfAbsent(DiffType.MISS_TABLE, key -> Maps.newHashMap()),
-                diffInfo -> buildKey(diffInfo.getDbName(), diffInfo.getTableName()), ">>>>>>>>>>>>>>>> 目标数据源缺少以下数据表： ");
+        if (resultType == ResultType.CORE) {
+            Map<String, DifferenceInfo> coreDiff = differences0.entrySet().stream().
+                    filter(entry -> !entry.getValue().isEmpty()).
+                    map(entry -> entry.getValue()).findFirst().orElse(null);
+            String result = coreDiff == null ?
+                    String.format(diffTitleFormat, "source数据源和target数据源，内容一致，数据同步成功\n") :
+                    String.format(diffTitleFormat, "source数据源和target数据源，内容不一致，数据同步失败\n");
+            try {
+                IOUtils.write(result, os);
+            } catch (IOException e) {
+                log.error("core result write fail", e);
+            }
+        }
 
-        writeReportFromDiffInfo(os, differences.computeIfAbsent(DiffType.DIFF_FROM_TABLE_STRUCTURE, key -> Maps.newHashMap()),
-                diffInfo -> structureDiffToString((TableStructureDiffInfo) diffInfo), ">>>>>>>>>>>>>>>> 以下数据表结构存在差异： ");
+//        differences0.entrySet().stream().forEach((entry)->{
+//            OutputStream os = null;
+//            try {
+//                os = new FileOutputStream(file);
+//            } catch (FileNotFoundException e) {
+//                log.error("create report file fail", e);
+//            }
+//
+//            writeReportFromDiffInfo(os,entry.getValue(),diffInfo->diffInfo.getDbName(),String.format(diffTitleFormat,"aa"));
+//        });
 
-        writeReportFromDiffInfo(os, coreDifferences.computeIfAbsent(DiffType.DIFF_FROM_RECORD_NUM, key -> Maps.newHashMap()),
-                diffInfo -> countDiffToString((RecordCountDiffInfo) diffInfo), ">>>>>>>>>>>>>>>> 以下数据表记录总数存在差异： ");
+        writeReportFromDiffInfo(os, differences0.computeIfAbsent(DiffType.MISS_DATABASE, key -> Maps.newHashMap()),
+                diffInfo -> diffInfo.getDbName(), String.format(diffTitleFormat, "目标数据源缺少以下数据库"));
 
-        writeReportFromDiffInfo(os, coreDifferences.computeIfAbsent(DiffType.DIFF_FROM_RECORD_CONTENT, key -> Maps.newHashMap()),
-                diffInfo -> contentDiffToString((RecordContentDiffInfo) diffInfo), ">>>>>>>>>>>>>>>> 以下【核心】数据表记录内容存在差异： ");
+        writeReportFromDiffInfo(os, differences0.computeIfAbsent(DiffType.MISS_TABLE, key -> Maps.newHashMap()),
+                diffInfo -> buildKey(diffInfo.getDbName(), diffInfo.getTableName()), String.format(diffTitleFormat, "目标数据源缺少以下数据表"));
 
-//        @leimo todo: 切换回 core
-//        writeReportFromDiffInfo(os, coreDifferences.computeIfAbsent(DiffType.MISS_PRIMARY_KEY, key -> Maps.newHashMap()),
-        writeReportFromDiffInfo(os, differences.computeIfAbsent(DiffType.MISS_PRIMARY_KEY, key -> Maps.newHashMap()),
-                diffInfo -> buildKey(diffInfo.getDbName(), diffInfo.getTableName()), ">>>>>>>>>>>>>>>> 以下【核心】数据表不存在primary key，无法对比记录内容： ");
+        writeReportFromDiffInfo(os, differences0.computeIfAbsent(DiffType.DIFF_FROM_TABLE_STRUCTURE, key -> Maps.newHashMap()),
+                diffInfo -> structureDiffToString((TableStructureDiffInfo) diffInfo), String.format(diffTitleFormat, "以下数据表结构存在差异"));
+
+        writeReportFromDiffInfo(os, differences0.computeIfAbsent(DiffType.DIFF_FROM_RECORD_NUM, key -> Maps.newHashMap()),
+                diffInfo -> countDiffToString((RecordCountDiffInfo) diffInfo), String.format(diffTitleFormat, "以下数据表记录总数存在差异"));
+
+        writeReportFromDiffInfo(os, differences0.computeIfAbsent(DiffType.DIFF_FROM_RECORD_CONTENT, key -> Maps.newHashMap()),
+                diffInfo -> contentDiffToString((RecordContentDiffInfo) diffInfo), String.format(diffTitleFormat, "以下数据表记录内容存在差异"));
+
+        writeReportFromDiffInfo(os, differences0.computeIfAbsent(DiffType.MISS_PRIMARY_KEY, key -> Maps.newHashMap()),
+                diffInfo -> buildKey(diffInfo.getDbName(), diffInfo.getTableName()), String.format(diffTitleFormat, "以下数据表不存在primary key，无法对比记录内容"));
+
 
         try {
+            log.info(IOUtils.toString(file.toURI()));
             os.close();
         } catch (IOException e) {
             log.error("outputStream close fail", e);
@@ -99,7 +132,7 @@ public class DiffInfoRegistry {
         StringBuilder sb = new StringBuilder();
         sb.append(">>>>>>>>>>>>>>>> 数据库名称 = ").append(countDiffInfo.getDbName()).append(" 数据表名称 = ").append(countDiffInfo.getTableName()).
                 append(" 源数据表记录总数 = ").append(countDiffInfo.getSourceTotalCount()).append(" 目标数据表记录总数 = ").append(countDiffInfo.getTargetTotalCount());
-        log.info("countDiffToString string = {}",sb.toString());
+        log.info("countDiffToString string = {}", sb.toString());
         return sb.toString();
     }
 
@@ -142,7 +175,7 @@ public class DiffInfoRegistry {
 
         });
 
-        log.info("contentDiffToString string = {}",sb.toString());
+        log.info("contentDiffToString string = {}", sb.toString());
         return sb.toString();
     }
 
@@ -152,7 +185,7 @@ public class DiffInfoRegistry {
 
         content.addAll(Streams.mapWithIndex(differenceInfoMap.entrySet().stream(), (entry, index) -> {
             StringBuilder res = new StringBuilder();
-            res.append(index+1).append(". ").append(lineProvider.apply(entry.getValue()));
+            res.append(index + 1).append(". ").append(lineProvider.apply(entry.getValue()));
             return res.toString();
         }).collect(Collectors.toList()));
 
@@ -180,5 +213,26 @@ public class DiffInfoRegistry {
                 }).filter(value -> value != null).findFirst().orElse(null);
 
         return diffInfo;
+    }
+
+    private enum ResultType {
+        CORE("[核心数据源差异]", "core"),
+        ALL("[全部数据源差异]", "all");
+
+        private final String prefix;
+        private final String name;
+
+        ResultType(String prefix, String name) {
+            this.prefix = prefix;
+            this.name = name;
+        }
+
+        public String getPrefix() {
+            return prefix;
+        }
+
+        public String getName() {
+            return name;
+        }
     }
 }

@@ -1,21 +1,21 @@
 {
   "source": {
     "driverClassName": "com.mysql.cj.jdbc.Driver",
-    "url": "jdbc:mysql://rm-bp14dfv73tvqb4io2-public.mysql.rds.aliyuncs.com:3306?&characterEncoding=UTF-8&useSSL=false&serverTimezone=GMT%2B8&zeroDateTimeBehavior=convertToNull",
-    "username": "global",
-    "password": "QAZokm528",
+    "url": "jdbc:mysql://rm-uf6ro35gma7a0o7plzo.mysql.rds.aliyuncs.com:3306?&characterEncoding=UTF-8&useSSL=false&serverTimezone=GMT%2B8&zeroDateTimeBehavior=convertToNull",
+    "username": "xspace_system",
+    "password": "Xcloud_2020",
     "initialSize": "80",
     "maxActive": "100",
-    "maxWait": "60000"
+    "maxWait": "10000"
   },
   "target": {
     "driverClassName": "com.mysql.cj.jdbc.Driver",
-    "url": "jdbc:mysql://rm-bp14dfv73tvqb4io2-public.mysql.rds.aliyuncs.com:3306?&characterEncoding=UTF-8&useSSL=false&serverTimezone=GMT%2B8&zeroDateTimeBehavior=convertToNull",
-    "username": "global",
-    "password": "QAZokm528",
+    "url": "jdbc:mysql://pc-uf6n11bcsws171i9b-service.rwlb.rds.aliyuncs.com:3306?&characterEncoding=UTF-8&useSSL=false&serverTimezone=GMT%2B8&zeroDateTimeBehavior=convertToNull",
+    "username": "xspace_system",
+    "password": "Xcloud_2020",
     "initialSize": "80",
     "maxActive": "100",
-    "maxWait": "60000"
+    "maxWait": "10000"
   },
   "config": {
     "corePoolSize": 60,
@@ -30,7 +30,9 @@
       "sys": ["*"],
       "information_schema": ["*"],
       "nacos": ["*"],
-      "power_job": ["*"]
+      "power_job": ["*"],
+      "cco_xixi_hotline_agent": ["hotline_session","hotline_inqueue_context","hotline_action_log"],
+      "cco_xixi_hotline_session": ["session_flow"]
     }
   }
 }

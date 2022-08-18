@@ -45,7 +45,9 @@ public abstract class DifferenceInfo {
         DIFF_FROM_TABLE_STRUCTURE,
         DIFF_FROM_RECORD_NUM,
         DIFF_FROM_RECORD_CONTENT,
-        MISS_PRIMARY_KEY
+        MISS_PRIMARY_KEY,
+        OUT_OF_LIMIT;
+//        abstract
     }
 
     // 1. [MISS_DATABASE]
@@ -192,6 +194,32 @@ public abstract class DifferenceInfo {
         @Override
         DiffType getDiffType() {
             return DiffType.MISS_PRIMARY_KEY;
+        }
+    }
+
+    // 7. [OUT_OF_LIMIT]
+    public static class OutOfLimitInfo extends DifferenceInfo{
+        // 每次循环对比500条数据。1张数据表默认循环20次，对比1w条数据。超出1w条则注册OutOfLimitInfo
+        public static int RECORD_COMPARE_LIMIT = 20;
+
+        public OutOfLimitInfo(String dbName, String tableName) {
+            super.setDbName(dbName);
+            super.setTableName(tableName);
+        }
+
+        @Override
+        DiffType getDiffType() {
+            return DiffType.OUT_OF_LIMIT;
+        }
+
+        boolean outOfLimit = false;
+
+        public boolean getOutOfLimit() {
+            return outOfLimit;
+        }
+
+        public void setOutOfLimit(boolean outOfLimit) {
+            this.outOfLimit = outOfLimit;
         }
     }
 }
